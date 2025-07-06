@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Backend Sistema de Pagos
 
 ## Estructura modular
@@ -37,3 +38,6 @@ npm run start:backend
 - `/api/pagos` (CRUD)
 - `/api/cuentas-por-pagar` (CRUD)
 - `/api/configuracion` (GET, PUT) 
+=======
+# costControl
+>>>>>>> 1f9942f68d6fb1f734d913c03eac13b24915b535
