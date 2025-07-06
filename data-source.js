@@ -4,6 +4,7 @@ const { Pago } = require('./entities/Pago');
 const { CentroCosto } = require('./entities/CentroCosto');
 const { CuentaPorPagar } = require('./entities/CuentaPorPagar');
 const { Configuracion } = require('./entities/Configuracion');
+const { User } = require('./entities/User');
 require('dotenv').config();
 const fs = require('fs');
 
@@ -16,7 +17,7 @@ const AppDataSource = new DataSource({
   database: process.env.DB_NAME,
   synchronize: true, // Cambia a true solo en desarrollo
   logging: false,
-  entities: [Pago, CentroCosto, CuentaPorPagar, Configuracion],
+  entities: [Pago, CentroCosto, CuentaPorPagar, Configuracion, User],
   migrations: [],
   subscribers: [],
 });

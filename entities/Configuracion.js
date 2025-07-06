@@ -9,6 +9,10 @@ module.exports.Configuracion = new EntitySchema({
     nombreEmpresa: { type: String },
     moneda: { type: String },
     formatoFecha: { type: String },
+    // Configuración de Slack
+    slackBotToken: { type: String, nullable: true },
+    slackChannel: { type: String, nullable: true },
+    slackEnabled: { type: Boolean, default: false },
     ultimaActualizacion: { type: 'datetime', updateDate: true },
   },
 }); 

@@ -14,6 +14,12 @@ module.exports.Pago = new EntitySchema({
     metodoPago: { type: String },
     referencia: { type: String, nullable: true },
     comentarios: { type: String, nullable: true },
+    // User system fields
+    status: { type: String, default: 'pending' }, // 'pending', 'approved', 'deferred'
+    createdByUserId: { type: Number, nullable: true }, // ID of user who created the payment
+    reviewedByUserId: { type: Number, nullable: true }, // ID of user who reviewed the payment
+    reviewDate: { type: Date, nullable: true }, // Date of approval/deferral
+    reviewComments: { type: String, nullable: true }, // Reviewer's comments
     createdAt: { type: 'datetime', createDate: true },
     updatedAt: { type: 'datetime', updateDate: true },
   },
