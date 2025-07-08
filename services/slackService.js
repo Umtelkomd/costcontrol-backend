@@ -125,7 +125,7 @@ class SlackService {
               text: 'Ver en Sistema 🔗'
             },
             style: 'primary',
-            url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/payment-approval`
+            url: `${process.env.FRONTEND_URL}/costcontrol/payment-approval`
           }
         ]
       });
