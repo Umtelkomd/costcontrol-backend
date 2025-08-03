@@ -3,6 +3,7 @@ const router = express.Router();
 const pagosController = require('../controllers/pagosController');
 
 router.get('/', pagosController.getAll);
+router.get('/metrics', pagosController.getMetrics);
 router.get('/pending', pagosController.getPending);
 router.get('/approved', pagosController.getApproved);
 router.get('/:id', pagosController.getById);

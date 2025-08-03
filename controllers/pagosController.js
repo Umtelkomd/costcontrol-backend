@@ -6,7 +6,36 @@ const slackService = require('../services/slackService');
 
 exports.getAll = async (req, res) => {
   try {
-    const pagos = await AppDataSource.getRepository(Pago).find();
+    const { startDate, endDate, status, centroCostoId } = req.query;
+    
+    let whereConditions = {};
+    
+    // Add date filtering
+    if (startDate || endDate) {
+      whereConditions.fecha = {};
+      if (startDate) {
+        whereConditions.fecha.gte = new Date(startDate);
+      }
+      if (endDate) {
+        whereConditions.fecha.lte = new Date(endDate);
+      }
+    }
+    
+    // Add status filtering
+    if (status) {
+      whereConditions.status = status;
+    }
+    
+    // Add cost center filtering
+    if (centroCostoId) {
+      whereConditions.centroCostoId = parseInt(centroCostoId);
+    }
+    
+    const pagos = await AppDataSource.getRepository(Pago).find({
+      where: whereConditions,
+      order: { fecha: 'DESC' }
+    });
+    
     res.json(pagos);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -223,6 +252,115 @@ exports.remove = async (req, res) => {
     if (!pago) return res.status(404).json({ error: 'No encontrado' });
     await repo.remove(pago);
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Get dashboard metrics
+exports.getMetrics = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    let whereConditions = {};
+    
+    // Add date filtering
+    if (startDate || endDate) {
+      whereConditions.fecha = {};
+      if (startDate) {
+        whereConditions.fecha.gte = new Date(startDate);
+      }
+      if (endDate) {
+        whereConditions.fecha.lte = new Date(endDate);
+      }
+    }
+    
+    const repo = AppDataSource.getRepository(Pago);
+    
+    // Get all payments for the period
+    const allPayments = await repo.find({
+      where: whereConditions,
+      order: { fecha: 'DESC' }
+    });
+    
+    // Calculate metrics
+    const totalAmount = allPayments.reduce((sum, payment) => sum + parseFloat(payment.monto || 0), 0);
+    const pendingPayments = allPayments.filter(p => p.status === 'pending');
+    const approvedPayments = allPayments.filter(p => p.status === 'approved');
+    const deferredPayments = allPayments.filter(p => p.status === 'deferred');
+    
+    const pendingAmount = pendingPayments.reduce((sum, payment) => sum + parseFloat(payment.monto || 0), 0);
+    const approvedAmount = approvedPayments.reduce((sum, payment) => sum + parseFloat(payment.monto || 0), 0);
+    const deferredAmount = deferredPayments.reduce((sum, payment) => sum + parseFloat(payment.monto || 0), 0);
+    
+    // Group by cost center
+    const byCostCenter = {};
+    allPayments.forEach(payment => {
+      const centerId = payment.centroCostoId || 0;
+      if (!byCostCenter[centerId]) {
+        byCostCenter[centerId] = { count: 0, amount: 0 };
+      }
+      byCostCenter[centerId].count++;
+      byCostCenter[centerId].amount += parseFloat(payment.monto || 0);
+    });
+    
+    // Group by date for daily payments chart
+    const dailyPayments = {};
+    allPayments.forEach(payment => {
+      const date = new Date(payment.fecha).toDateString();
+      if (!dailyPayments[date]) {
+        dailyPayments[date] = { count: 0, amount: 0 };
+      }
+      dailyPayments[date].count++;
+      dailyPayments[date].amount += parseFloat(payment.monto || 0);
+    });
+    
+    // Convert daily payments to array and sort by date
+    const dailyPaymentsArray = Object.entries(dailyPayments)
+      .map(([date, data]) => ({
+        date: new Date(date),
+        ...data
+      }))
+      .sort((a, b) => a.date - b.date);
+    
+    // Top cost centers
+    const topCostCenters = Object.entries(byCostCenter)
+      .map(([centroId, data]) => ({
+        centroId: parseInt(centroId),
+        ...data
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
+    
+    const metrics = {
+      totalPayments: allPayments.length,
+      totalAmount,
+      pendingPayments: pendingPayments.length,
+      pendingAmount,
+      approvedPayments: approvedPayments.length,
+      approvedAmount,
+      deferredPayments: deferredPayments.length,
+      deferredAmount,
+      averagePayment: totalAmount / (allPayments.length || 1),
+      
+      // Payment status distribution
+      statusDistribution: {
+        pending: pendingPayments.length,
+        approved: approvedPayments.length,
+        deferred: deferredPayments.length
+      },
+      
+      // Payments by cost center
+      byCostCenter,
+      
+      // Daily payments for chart
+      dailyPayments: dailyPaymentsArray,
+      
+      // Top cost centers
+      topCostCenters
+    };
+    
+    res.json(metrics);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
