@@ -23,6 +23,9 @@ app.use('/api/cuentas-por-pagar', cuentasPorPagarRoutes);
 app.use('/api/configuracion', configuracionRoutes);
 app.use('/api/users', usersRoutes);
 
+// Ruta específica para autenticación SSO
+app.use('/api/auth', usersRoutes);
+
 app.get('/', (req, res) => {
   res.send('API Sistema de Pagos funcionando');
 });
