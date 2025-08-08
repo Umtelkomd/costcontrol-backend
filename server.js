@@ -11,20 +11,20 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // Import modular routes
+const authRoutes = require('./routes/auth');
 const centrosCostoRoutes = require('./routes/centrosCosto');
 const pagosRoutes = require('./routes/pagos');
 const cuentasPorPagarRoutes = require('./routes/cuentasPorPagar');
 const configuracionRoutes = require('./routes/configuracion');
 const usersRoutes = require('./routes/users');
 
+// Registrar rutas (auth debe ir primero)
+app.use('/api/auth', authRoutes);
 app.use('/api/centros-costo', centrosCostoRoutes);
 app.use('/api/pagos', pagosRoutes);
 app.use('/api/cuentas-por-pagar', cuentasPorPagarRoutes);
 app.use('/api/configuracion', configuracionRoutes);
 app.use('/api/users', usersRoutes);
-
-// Ruta específica para autenticación SSO
-app.use('/api/auth', usersRoutes);
 
 app.get('/', (req, res) => {
   res.send('API Sistema de Pagos funcionando');
