@@ -3,6 +3,7 @@ const { Pago } = require('../entities/Pago');
 const { CentroCosto } = require('../entities/CentroCosto');
 const { User } = require('../entities/User');
 const slackService = require('../services/slackService');
+const { Between, MoreThanOrEqual, LessThanOrEqual } = require('typeorm');
 
 exports.getAll = async (req, res) => {
   try {
@@ -12,12 +13,14 @@ exports.getAll = async (req, res) => {
     
     // Add date filtering
     if (startDate || endDate) {
-      whereConditions.fecha = {};
-      if (startDate) {
-        whereConditions.fecha.gte = new Date(startDate);
-      }
-      if (endDate) {
-        whereConditions.fecha.lte = new Date(endDate);
+      const start = startDate ? new Date(startDate) : null;
+      const end = endDate ? new Date(endDate) : null;
+      if (start && end) {
+        whereConditions.fecha = Between(start, end);
+      } else if (start) {
+        whereConditions.fecha = MoreThanOrEqual(start);
+      } else if (end) {
+        whereConditions.fecha = LessThanOrEqual(end);
       }
     }
     
@@ -266,12 +269,14 @@ exports.getMetrics = async (req, res) => {
     
     // Add date filtering
     if (startDate || endDate) {
-      whereConditions.fecha = {};
-      if (startDate) {
-        whereConditions.fecha.gte = new Date(startDate);
-      }
-      if (endDate) {
-        whereConditions.fecha.lte = new Date(endDate);
+      const start = startDate ? new Date(startDate) : null;
+      const end = endDate ? new Date(endDate) : null;
+      if (start && end) {
+        whereConditions.fecha = Between(start, end);
+      } else if (start) {
+        whereConditions.fecha = MoreThanOrEqual(start);
+      } else if (end) {
+        whereConditions.fecha = LessThanOrEqual(end);
       }
     }
     

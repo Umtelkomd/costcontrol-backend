@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 const { AppDataSource } = require('./data-source');
@@ -43,30 +45,24 @@ const limiter = rateLimit({
     error: 'Too many requests from this IP',
     code: 'RATE_LIMIT_EXCEEDED'
   },
-  skip: (req) => req.method === 'OPTIONS' // Skip rate limiting for CORS preflight
-});
-app.use('/api/', limiter);
-
-// Stricter rate limiting for auth endpoints - but still permissive for development
-const authLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
-  max: process.env.NODE_ENV === 'development' ? 100 : 10, // Much higher limit for development
-  message: {
-    error: 'Too many authentication attempts',
-    code: 'AUTH_RATE_LIMIT_EXCEEDED'
-  },
-  skip: (req) => req.method === 'OPTIONS' // Skip rate limiting for CORS preflight
-});
-app.use('/api/auth/', authLimiter);
-
-// Body parsing with limits
-app.use(express.json({ 
-  limit: '10mb',
-  verify: (req, res, buf) => {
-    req.rawBody = buf;
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for certain endpoints in development
+    if (process.env.NODE_ENV === 'development') {
+      return req.path.includes('/api/auth/verify') || req.path.includes('/api/configuracion');
+    }
+    return false;
   }
-}));
+});
+
+app.use(limiter);
+
+// Body parsing middleware with size limits
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(bodyParser.json());
+app.use(cookieParser());
 
 // Request logging in development
 if (process.env.NODE_ENV === 'development') {
@@ -77,43 +73,30 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Import modular routes
+const authRoutes = require('./routes/auth');
 const centrosCostoRoutes = require('./routes/centrosCosto');
 const pagosRoutes = require('./routes/pagos');
 const cuentasPorPagarRoutes = require('./routes/cuentasPorPagar');
 const configuracionRoutes = require('./routes/configuracion');
 const usersRoutes = require('./routes/users');
 const proyectosRoutes = require('./routes/proyectos');
-const authRoutes = require('./routes/auth');
 
+// Registrar rutas (auth debe ir primero)
+app.use('/api/auth', authRoutes);
 app.use('/api/centros-costo', centrosCostoRoutes);
 app.use('/api/pagos', pagosRoutes);
 app.use('/api/cuentas-por-pagar', cuentasPorPagarRoutes);
 app.use('/api/configuracion', configuracionRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/proyectos', proyectosRoutes);
-app.use('/api/auth', authRoutes);
 
-// Health check endpoint
-app.get('/', (req, res) => {
-  res.json({
-    service: 'Cost Control API',
-    version: '2.0.0',
-    status: 'running',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    developers: {
-      lead: 'Andrés Romero',
-      ai_assistant: 'Claude (Anthropic)'
-    },
-    description: 'Sistema de Control de Costos - Desarrollado por Andrés Romero en colaboración con Claude AI'
-  });
-});
-
+// Basic health check
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    database: 'connected',
-    timestamp: new Date().toISOString()
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    version: '2.0.0',
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
@@ -121,28 +104,68 @@ app.get('/api/health', (req, res) => {
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  
-  if (AppDataSource.isInitialized) {
-    await AppDataSource.destroy();
-    console.log('Database connections closed');
+// Initialize database and start server
+async function startServer() {
+  try {
+    console.log('🔄 Initializing database connection...');
+    
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+      console.log('✅ Database connection established successfully');
+    }
+
+    const server = app.listen(port, () => {
+      console.log('🚀 Cost Control Backend Server Started');
+      console.log('===================================');
+      console.log(`🌐 Server running on port: ${port}`);
+      console.log(`🗄️  Database: SQLite (${process.env.NODE_ENV || 'development'})`);
+      console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`📱 API Base URL: http://localhost:${port}/api`);
+      console.log('===================================');
+      
+      // Log available routes
+      console.log('Available API Routes:');
+      console.log('📍 POST   /api/auth/verify');
+      console.log('📍 GET    /api/health');
+      console.log('📍 GET    /api/configuracion');
+      console.log('📍 *      /api/centros-costo');
+      console.log('📍 *      /api/pagos');
+      console.log('📍 *      /api/cuentas-por-pagar');
+      console.log('📍 *      /api/users');
+      console.log('📍 *      /api/proyectos');
+      console.log('===================================');
+    });
+
+    // Graceful shutdown
+    process.on('SIGTERM', async () => {
+      console.log('🛑 SIGTERM received, shutting down gracefully...');
+      server.close(async () => {
+        try {
+          if (AppDataSource.isInitialized) {
+            await AppDataSource.destroy();
+            console.log('✅ Database connection closed.');
+          }
+          console.log('✅ Server shut down complete.');
+          process.exit(0);
+        } catch (err) {
+          console.error('❌ Error during shutdown:', err);
+          process.exit(1);
+        }
+      });
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    console.error('Stack trace:', error.stack);
+    process.exit(1);
   }
-  
-  process.exit(0);
+}
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
 });
 
-AppDataSource.initialize()
-  .then(() => {
-    app.listen(port, () => {
-      console.log(`🚀 Cost Control API running on port ${port}`);
-      console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🔒 Security: Enhanced with Helmet, Rate Limiting, and CORS`);
-      console.log(`📋 API Documentation: http://localhost:${port}/api/health`);
-    });
-  })
-  .catch((err) => {
-    console.error('❌ Failed to initialize database:', err);
-    process.exit(1);
-  }); 
+// Start the server
+startServer();
